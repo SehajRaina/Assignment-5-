@@ -1,0 +1,286 @@
+---
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+<br><br>
+
+![](can.jpg)
+
+
+##**Public Health Agency of Canada**
+######130 Colonnade Road, A.L. 6501H, Ottawa, Ontario K1A 0K9
+
+<br>
+
+###**Blood Sample Test Report**
+
+<br>
+
+#####**Report By:** Sehaj Raina
+#####**Report Data/Time:** 02/11/2019 11:30am
+#####**Patient Name:** Gandalf the Grey
+#####**Age/Sex:** ~2,019yrs/M
+#####**DOB:** Unknown
+#####**Height:** 5'6"
+#####**Hair Colour:** Long white, silver beard
+#####**Patient I.D:** 1010101010
+#####**Ordering Dr:** Dr. Coulatti
+#####**Status:** URGENT
+
+<br>
+
+##### The report below outlines the alignments and phylogenetic analysis of Mr. Gandalf's protein and DNA sequence obtained via high-throughput sequencing of the patient’s biofluids. 
+#####The results indicate that Mr. Gandalf requires **URGENT CARE** as the sequence analysis shows a match for the Influenza A virus (H5N1) gene encoding [neuraminidase](https://en.wikipedia.org/wiki/Viral_neuraminidase); an enzyme found on the surface of influenza viruses that allows the virus to be released from the host cell. 
+#####The H5N1 virus, also known as the bird flu can be lethal to patients therefore immediate medical attention is required. The patient should be immediately treated with neuraminidase inhibitors.
+
+<br>
+
+1. Load packages
+```{r}
+suppressMessages(library(BiocManager))
+suppressMessages(library(genbankr))
+suppressMessages(library(rentrez))
+suppressMessages(library(annotate))
+suppressMessages(library(ape))
+suppressMessages(library(ggplot2))
+suppressMessages(library(reshape2))
+suppressMessages(library(ggtree))
+```
+
+<br>
+
+2. Assign DNA sequence to object
+```{r}
+seq<-"AGCAAAAGCAGGAGTTCAAAATGAATCCAAATCAGAAGATAACAACCATTGGATCAATCTGTATGGTAAT
+TGGAATAGTTAGCTTGATGTTACAAATTGGGAACATAATCTCAATATGGGTTAGTCATTCAATTCAAACA
+GGGAATCAACACCAGGCTGAACCATGCAATCAAAGCATTATTACTTATGAAAACAACACCTGGGTAAACC
+AGACATATGTCAACATCAGCAATACCAATTTTCTTACTGAGAAAGCTGTGGCTTCAGTAACATTAGCGGG
+CAATTCATCTCTTTGCCCCATTAGTGGATGGGCTGTATACAGTAAGGACAACGGTATAAGAATCGGTTCC
+AAGGGGGATGTGTTTGTTATAAGAGAGCCGTTCATCTCATGCTCCCACTTGGAATGCAGAACTTTCTTTT
+TGACTCAGGGAGCCTTGCTGAATGACAAGCATTCTAATGGGACCGTCAAAGACAGAAGCCCTCACAGAAC
+ATTAATGAGTTGTCCCGTGGGTGAGGCTCCTTCCCCATACAACTCGAGGTTTGAGTCTGTTGCTTGGTCG
+GCAAGTGCTTGTCATGATGGCACTAGTTGGTTGACAATTGGAATTTCTGGCCCAGACAATGGGGCTGTGG
+CTGTATTGAAATACAATGGCATAATAACAGACACTATCAAGAGTTGGAGGAACAACATAATGAGAACTCA
+AGAGTCTGAATGTGCATGTGTAAATGGCTCTTGCTTTACTGTTATGACTGATGGACCAAGTAATGGGCAG
+GCTTCATACAAAATCTTCAGAATAGAAAAAGGGAAAGTAGTTAAATCAGCCGAATTAAATGCCCCTAATT
+ATCACTATGAGGAGTGCTCCTGTTATCCTGATGCTGGAGAAATCACATGTGTGTGCAGGGATAACTGGCA
+TGGCTCAAATCGGCCATGGGTATCTTTCAATCAAAATTTGGAGTATCGAATAGGATATATATGCAGTGGA
+GTTTTCGGAGACAATCCACGCCCCAATGATGGGACAGGCAGTTGTGGTCCGGTGTCCCCTAAAGGGGCAT
+ATGGAATAAAAGGGTTCTCATTTAAATACGGCAATGGTGTTTGGATCGGGAGAACCAAAAGCACTAATTC
+CAGGAGCGGCTTTGAAATGATTTGGGATCCAAATGGATGGACTGGTACGGACAGTAATTTTTCAGTAAAG
+CAAGATATTGTAGCTATAACCGATTGGTCAGGATATAGCGGGAGTTTTGTCCAGCATCCAGAACTGACAG
+GATTAGATTGCATAAGACCTTGTTTCTGGGTTGAGCTAATCAGAGGGCGGCCCAAAGAGAGCACAATTTG
+GACTAGTGGGAGCAGCATATCCTTTTGTGGTGTAAATAGTGACACTGTGGGTTGGTCTTGGCCAGACGGT
+GCTGAGTTGCCATTCACCATTGACAAGTAGTTTGTTCAAAAAACTCCTTGTTTCTACT"
+```
+
+<br>
+
+3. Run BLAST search and re-format data 
+```{r}
+#make new dataframe with 2 new columns that have the accession ID and HIT sequence
+UnknownBLAST<-blastSequences(paste(seq), as="data.frame",
+                           hitListSize = 40, timeout = 180, database="nr",program="blastn") #use blastn for nucleotides
+
+HitsDF<-data.frame(ID=UnknownBLAST$Hit_accession,#only take sequences that align
+                     Seq=UnknownBLAST$Hsp_hseq, stringsAsFactors = FALSE)
+
+HitsDNA<-sapply(HitsDF$Seq, strsplit, split="") #seperates sequences into individual base pairs (new column for each basepair)
+
+names(HitsDNA)<-paste(1:nrow(HitsDF), HitsDF$ID, sep="_") #Add accession ID to remove repeats 
+
+HitsDNA<-as.DNAbin(HitsDNA) #final format before alignment 
+```
+
+<br>
+
+4. Gap lengths
+```{r}
+
+SeqLen<-as.numeric(lapply(HitsDNA, length)) #check to see relative distribution of gap lengths (may need to remove some for better alignment)
+
+qplot(SeqLen, xlab="Sequence Length (Nucleotides)", ylab="Gap Length (Nucleotides)", main="Distribution of Gap Lengths")
+```
+
+### __Figure 1.__ *Gap Lengths Distribution*
+#####From the gap length analysis, we can see that the distribution is fairly even and therefore no sequences will be excluded from the alignment.
+
+<br>
+
+5. Alignment of HIT DNA sequences from BLAST search 
+```{r}
+AlignDNA<-muscle(HitsDNA, quiet=F) #search MUSCLE aligner
+
+checkAlignment(AlignDNA) #show alignment plots
+```
+
+### __Figure 2.__ *Alignment Plots*
+#####For the 40 HIT sequences:
+#####1. The image of the alignment shows us that at each sequence position, most (if not ALL) nucleotides align.
+#####2. The Shannon index (H) for each sequence position is relatively low, therefore there is a low diversity of nucleotides across the sequences.
+#####3. The gap lengths are not too wide (most have gap lengths of 1).
+#####4. The number of observed bases along the sequences are mostly consistent at 1.0 with some 2.0 Number of Observed Bases, except for TWO sequence positions (between 0-250) which have Number of Observed Bases at 3.0.
+
+<br>
+
+#####Therefore, this series of diagnostics show us a strong alignment of our 40 HIT sequences from the nucleotide BLAST search of our unknown DNA sequence. 
+
+<br>
+
+6. Adding Species names
+```{r}
+Subset<-read.GenBank(UnknownBLAST$Hit_accession)
+HITseqNames<-attr(Subset, "species")
+print(HITseqNames[1])
+```
+
+###**MAIN RESULTS**
+#####Our alignment shows that the DNA sequence obtained from the high-throughput sequencing of the patient’s biofluids has the highest match to the Influenza A virus (H5N1) gene encoding neuraminidase. 
+#####This patient requires __IMMEDIATE MEDICAL CARE__
+
+<br>
+
+#Appendix I.
+
+<br>
+
+7. Convert alignment to a Distance Matrix and Visualize
+```{r}
+DnaDM1<- dist.dna(AlignDNA, model="K80")
+DnaDMmat1<-as.matrix(DnaDM1)
+
+Dat1<-melt(DnaDMmat1)
+ggplot(data=Dat1, aes(x=Var1, y=Var2, fill=value)) + 
+    geom_tile() +scale_fill_gradientn(colours=c("white", "blue", "green", "red"))
+```
+
+### __Figure 3.__ *K80 Model Distance Matrix of 40 HIT Sequences alignment*
+
+<br>
+
+```{r}
+DnaDM2<- dist.dna(AlignDNA, model="F84")
+DnaDMmat2<-as.matrix(DnaDM2)
+
+Dat2<-melt(DnaDMmat2)
+ggplot(data=Dat2, aes(x=Var1, y=Var2, fill=value)) + 
+    geom_tile() +scale_fill_gradientn(colours=c("white", "blue", "green", "red"))
+```
+
+### __Figure 4.__ *F84 Model Distance Matrix of 40 HIT Sequences alignment*
+
+<br>
+
+```{r}
+DnaDM3<- dist.dna(AlignDNA, model="TN93")
+DnaDMmat3<-as.matrix(DnaDM3)
+
+Dat3<-melt(DnaDMmat3)
+ggplot(data=Dat3, aes(x=Var1, y=Var2, fill=value)) + 
+    geom_tile() +scale_fill_gradientn(colours=c("white", "blue", "green", "red"))
+```
+
+### __Figure 5.__ *TN93 Model Distance Matrix of 40 HIT Sequences alignment*
+
+<br>
+
+#####The Distance Matrix graphs among the 3 models in Figures 3 to 5 are very similar with very minute differences.
+
+#####In models of DNA evolution, the changes within purines (A and G) and pyrimidines (C and T) are known as transitions, but changes from purines to pyrimidines (and vise versa) are known as transversions. 
+
+#####The K80 model assumes that all of the bases are equally frequent (25% chance each), however the rates of transition and transversion substitutions are allowed to differ.
+
+#####In the F84 model (Felsenstein 1984), similar to the K80 model, the rates of base transitions and transversions are allowed to be different, BUT the base frequencies are NOT assumed to be equal.
+
+#####In the TN93 model(Tamura and Nei 1993), base transitions between purines are allowed to have different rates than base transitions between pyrimidines and base frequencies are allowed to be unequal. However, both transversions are assumed to occur at the same rate, BUT they are allowed to differ from both rates of transition.
+
+<br>
+
+#####In the case of our unknown DNA sequence, it is only 1458 nucleotides long therefore the TN93 model seems most appropriate since it has the most leeway in the differences in substitutions allowed.
+#####1. The nucleotides can differ in BOTH transition types (not present in K80 and F84), meaning the transition rate of purine to another purine can differ from the rate of transition of a pyrimidine to another pyrimidine. 
+#####2. These transitions are more frequent that transversion substitutions, and both transversion substitutions are allowed to differ from the transition rates. 
+#####3. In addition, the base frequencies can also be unequal (not present in the K80 model).
+
+<br>
+
+#####For the phylogenetic trees, I will be making NJ and ME trees for each model to look for any differences, however the model I will focus on is the TN93 as previously explained. 
+
+<br><br>
+
+8. a) K80 model: Phylogenetic tree using Neighbour-Joining (NJ) vs. Minimum Evolution (ME)
+```{r}
+Tree1<-nj(DnaDM1) 
+ggtree(Tree1) + geom_tiplab(size = 2.0, colour="blue") + 
+    ggtitle("K80 Model Neighbour-Joining (NJ) Phylogenetic Tree")
+```
+
+### __Figure 6.i)__ *Neighbour-Joining (NJ) Phylogenetic trees for K80 model*
+
+<br>
+
+```{r}
+Tree2<-fastme.bal(DnaDM1) 
+ggtree(Tree2) + geom_tiplab(size = 1.9, colour="red") + 
+    ggtitle("K80 Model Minimum Evolution (ME) Phylogenetic Tree")
+```
+
+### __Figure 6.ii)__ *Minimum Evolution (ME) Phylogenetic trees for K80 model*
+
+<br><br>
+
+
+8. b) F84 model: Phylogenetic tree using Neighbour-Joining (NJ) vs. Minimum Evolution (ME)
+```{r}
+Tree3<-nj(DnaDM2) 
+ggtree(Tree3) + geom_tiplab(size = 2.0, colour="blue") + 
+    ggtitle("F84 Model Neighbour-Joining (NJ) Phylogenetic Tree")
+```
+
+### __Figure 7.i)__ *Neighbour-Joining (NJ) Phylogenetic trees for F84 model*
+
+<br>
+
+```{r}
+Tree4<-fastme.bal(DnaDM2) 
+ggtree(Tree4) + geom_tiplab(size = 1.9, colour="red") + 
+    ggtitle("F84 Model Minimum Evolution (ME) Phylogenetic Tree")
+```
+
+### __Figure 7.ii)__ *Minimum Evolution (ME) Phylogenetic trees for F84 model*
+
+<br><br>
+
+8. c) TN93 model: Phylogenetic tree using Neighbour-Joining (NJ) vs. Minimum Evolution (ME)
+```{r}
+Tree5<-nj(DnaDM3) 
+ggtree(Tree5) + geom_tiplab(size = 2.0, colour="blue") + 
+    ggtitle("TN93 Model Neighbour-Joining (NJ) Phylogenetic Tree")
+```
+
+### __Figure 8.i)__ *Neighbour-Joining (NJ) Phylogenetic trees for TN93 model*
+
+<br>
+
+```{r}
+Tree6<-fastme.bal(DnaDM3) 
+ggtree(Tree6) + geom_tiplab(size = 1.9, colour="red") + 
+    ggtitle("TN93 Model Minimum Evolution (ME) Phylogenetic Tree")
+```
+
+### __Figure 8.ii)__ *Minimum Evolution (ME) Phylogenetic trees for TN93 model*
+
+<br>
+
+#####There seems to be no significiant difference visually among the NJ and ME trees across the 3 models since the distance matrices were very similar between the 3 models.
+#####The NJ trees use a bottom-up clustering method that depends on the distance between each pair of taxa, or in our case each DNA sequence. The ME method is also based on distance, however the measurements of distance that correct for multiple hits at the same sites are used. As a result, the sum of the branches that gives the smallest value is used for building the tree.
+#####In the case of the TN93 model phylogenetic trees, we see a clear difference between the NJ and ME because the length of our DNA sequence is relatively short. ME trees are best suited for long DNA of protein sequences whereas shorter sequences are best represented using NJ trees. 
+#####As a result, __Figure 8.i)__ is the most accurate phylogenetic tree.
+
+<br>
+
+##**END OF REPORT**
+
+
